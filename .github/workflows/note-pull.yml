@@ -22,10 +22,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      - name: Pull from note
+      - name: Pull from note (via n8n)
         id: pull
         env:
-          NOTE_MCP_URL: ${{ secrets.NOTE_MCP_URL }}
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
         run: |
           CONFLICTS=""
           UPDATED=""
@@ -37,13 +37,16 @@ jobs:
             location=$(jq -r '.editing.location // "none"' $meta)
             
             if [ "$location" = "note" ]; then
-              echo "Pulling $slug..."
-              if node scripts/note-sync.js pull "$slug"; then
-                UPDATED="$UPDATED $slug"
+              echo "Pulling $slug via n8n..."
+              response=$(curl -X POST "${N8N_WEBHOOK_URL}/note-pull" \
+                -H "Content-Type: application/json" \
+                -d "{\"slug\": \"$slug\"}" \
+                -s)
+              
+              if echo "$response" | jq -e '.conflicts == true' > /dev/null; then
+                CONFLICTS="$CONFLICTS $slug"
               else
-                if [ -f "articles/$slug/index.CONFLICT.md" ]; then
-                  CONFLICTS="$CONFLICTS $slug"
-                fi
+                UPDATED="$UPDATED $slug"
               fi
             fi
           done

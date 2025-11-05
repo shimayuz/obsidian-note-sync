@@ -2,91 +2,89 @@ name: Pull from note
 
 on:
   schedule:
-    # 毎時15分に実行（note公開後15分待ってからpull）
-    - cron: '15 * * * *'
-  workflow_dispatch:
-    # 手動実行も可能
-    inputs:
-      slug:
-        description: 'Article slug to pull (leave empty for all)'
-        required: false
+    - cron: '*/15 * * * *'  # 15分ごと
+  workflow_dispatch:  # 手動実行も可能
 
 jobs:
-  pull:
+  sync:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # 全履歴を取得（git blame用）
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-      
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 9
+          cache: 'npm'
       
       - name: Install dependencies
-        run: pnpm install
+        run: npm ci
       
-      - name: Build TypeScript
-        run: pnpm build
-      
-      - name: Pull from note (single article)
-        if: ${{ github.event.inputs.slug != '' }}
+      - name: Pull from note
+        id: pull
         env:
-          NOTE_MCP_SERVER_URL: ${{ secrets.NOTE_MCP_SERVER_URL }}
-          NOTE_SESSION_COOKIE: ${{ secrets.NOTE_SESSION_COOKIE }}
+          NOTE_MCP_URL: ${{ secrets.NOTE_MCP_URL }}
         run: |
-          pnpm sync:pull ${{ github.event.inputs.slug }}
-      
-      - name: Pull from note (all articles)
-        if: ${{ github.event.inputs.slug == '' }}
-        env:
-          NOTE_MCP_SERVER_URL: ${{ secrets.NOTE_MCP_SERVER_URL }}
-          NOTE_SESSION_COOKIE: ${{ secrets.NOTE_SESSION_COOKIE }}
-        run: |
-          # 全記事のmeta.jsonを検索してpull
+          CONFLICTS=""
+          UPDATED=""
+          
           for meta in articles/*/meta.json; do
-            slug=$(dirname "$meta" | xargs basename)
-            echo "Pulling $slug..."
-            pnpm sync:pull "$slug" || echo "Failed to pull $slug"
+            slug=$(basename $(dirname $meta))
+            
+            # note 側が編集中の記事のみ pull
+            location=$(jq -r '.editing.location // "none"' $meta)
+            
+            if [ "$location" = "note" ]; then
+              echo "Pulling $slug..."
+              if node scripts/note-sync.js pull "$slug"; then
+                UPDATED="$UPDATED $slug"
+              else
+                if [ -f "articles/$slug/index.CONFLICT.md" ]; then
+                  CONFLICTS="$CONFLICTS $slug"
+                fi
+              fi
+            fi
           done
-      
-      - name: Check for conflicts
-        run: |
-          conflicts=$(find articles -name "*.CONFLICT.md" | wc -l)
-          if [ "$conflicts" -gt 0 ]; then
-            echo "⚠️ Found $conflicts conflict(s)"
-            find articles -name "*.CONFLICT.md"
-            exit 1
-          fi
+          
+          echo "updated=$UPDATED" >> $GITHUB_OUTPUT
+          echo "conflicts=$CONFLICTS" >> $GITHUB_OUTPUT
       
       - name: Commit changes
-        if: github.event_name == 'schedule'
+        if: steps.pull.outputs.updated != ''
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add articles/
-          git add assets/
-          git diff --staged --quiet || git commit -m "chore: sync from note [skip ci]"
-          git push || echo "No changes to commit"
+          git diff --staged --quiet || git commit -m "chore: pull from note [skip ci]"
+          git push
       
-      - name: Create Pull Request on conflicts
-        if: failure() && github.event_name == 'schedule'
+      - name: Create PR for conflicts
+        if: steps.pull.outputs.conflicts != ''
         uses: peter-evans/create-pull-request@v5
         with:
-          title: "⚠️ Sync conflicts detected"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "⚠️ Resolve note sync conflicts"
+          title: "⚠️ note sync conflicts detected"
           body: |
-            Conflicts detected during note → Obsidian sync.
+            ## 競合検知
             
-            Please review and resolve conflicts manually.
-          branch: sync-conflicts-$(date +%s)
-          commit-message: "chore: sync conflicts detected"
+            以下の記事で note 側の変更と Obsidian 側の変更が競合しました：
+            
+            ${{ steps.pull.outputs.conflicts }}
+            
+            ### 対処方法
+            
+            1. 各記事の `index.CONFLICT.md` を確認
+            2. 必要な内容を `index.md` にマージ
+            3. `index.CONFLICT.md` を削除
+            4. この PR をマージ
+            
+            ### 自動マージが失敗した理由
+            
+            両方で同じ箇所が編集されている可能性があります。
+            手動でマージしてください。
+          branch: note-sync-conflicts-${{ github.run_number }}
+          delete-branch: true
 

@@ -1,0 +1,6 @@
+# Articles directory
+# Each article should have its own subdirectory with:
+# - index.md (Markdown content)
+# - meta.json (Sync metadata)
+# - assets/ (Images)
+

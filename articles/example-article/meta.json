@@ -1,0 +1,26 @@
+{
+  "note_id": "n/example123",
+  "slug": "example-article",
+  "title": "サンプル記事",
+  "status": "draft",
+  "editing": {
+    "location": "obsidian",
+    "locked_by": "user",
+    "locked_at": "2025-11-05T10:00:00+09:00",
+    "version": "v1"
+  },
+  "versions": {
+    "git_commit": "initial",
+    "note_revision": null,
+    "hash": {
+      "obsidian": "sha256:example...",
+      "html": null
+    }
+  },
+  "sync": {
+    "last_push": null,
+    "last_pull": null,
+    "conflicts": []
+  }
+}
+

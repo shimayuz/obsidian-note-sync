@@ -1,0 +1,62 @@
+name: Push to note
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'articles/**/*.md'
+      - 'articles/**/*.json'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Detect changed articles
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep 'articles/.*/index.md$' | sed 's|articles/\(.*\)/index.md|\1|' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "changed=" >> $GITHUB_OUTPUT
+          else
+            echo "changed<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGED" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Push to note
+        if: steps.changes.outputs.changed != ''
+        env:
+          NOTE_MCP_URL: ${{ secrets.NOTE_MCP_URL }}
+        run: |
+          echo "${{ steps.changes.outputs.changed }}" | while read slug; do
+            if [ -n "$slug" ]; then
+              echo "Pushing $slug..."
+              node scripts/note-sync.js push "$slug" --check-lock || echo "⚠️ Failed to push $slug"
+            fi
+          done
+      
+      - name: Commit metadata updates
+        if: steps.changes.outputs.changed != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add articles/*/meta.json articles/*/note.html articles/*/.note-cdn/
+          git diff --staged --quiet || git commit -m "chore: update note sync metadata [skip ci]"
+          git push
+

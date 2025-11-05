@@ -1,0 +1,35 @@
+{
+  "name": "obsidian-note-sync",
+  "version": "1.0.0",
+  "description": "Obsidian ⇄ note.com 双方向同期システム",
+  "type": "module",
+  "scripts": {
+    "sync:push": "node scripts/note-sync.js push",
+    "sync:pull": "node scripts/note-sync.js pull",
+    "sync:status": "node scripts/note-sync.js status",
+    "sync:check-all": "node scripts/note-sync.js check-all",
+    "watch:note": "node scripts/watch-note-edits.js",
+    "cleanup:images": "node scripts/cleanup-unused-images.js",
+    "setup:lfs": "bash scripts/setup-git-lfs.sh",
+    "create:article": "node scripts/create-article.js",
+    "optimize:image": "node scripts/optimize-image.js"
+  },
+  "dependencies": {
+    "marked": "^11.1.1",
+    "turndown": "^7.1.2",
+    "turndown-plugin-gfm": "^1.0.2",
+    "diff": "^5.1.0",
+    "glob": "^10.3.10",
+    "sharp": "^0.33.1",
+    "node-fetch": "^3.3.2",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

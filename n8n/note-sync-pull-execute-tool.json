@@ -1,0 +1,185 @@
+{
+  "name": "note → Obsidian Pull (Execute Tool)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "note-pull",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "note-pull"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://127.0.0.1:3000/mcp",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get-note\",\n    \"arguments\": {\n      \"noteId\": \"{{ $json.noteId }}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "name": "Execute Tool: get-note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Check Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// note-mcp のレスポンスを処理\nconst mcpResponse = $input.first().json;\n\nif (mcpResponse.error) {\n  return {\n    success: false,\n    error: mcpResponse.error\n  };\n}\n\n// MCP レスポンスから note データを抽出\nconst result = mcpResponse.result;\nlet noteData;\n\nif (result.content && result.content[0]) {\n  const content = result.content[0];\n  if (typeof content.text === 'string') {\n    noteData = JSON.parse(content.text);\n  } else {\n    noteData = content;\n  }\n} else {\n  noteData = result;\n}\n\nreturn {\n  success: true,\n  noteId: $input.first().json.noteId || $('Webhook').first().json.noteId,\n  noteData: noteData,\n  body: noteData.body || noteData.html || noteData.content || '',\n  title: noteData.title || noteData.name || ''\n};"
+      },
+      "name": "Process MCP Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "command": "cd /Users/heavenlykiss0820/note-obsidian && node scripts/note-sync.js pull {{ $json.noteId }} --force",
+        "options": {}
+      },
+      "name": "Sync to Obsidian",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"noteId\": \"{{ $json.noteId }}\",\n  \"synced\": true\n}",
+        "options": {}
+      },
+      "name": "Response Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"error\": {{ $json.error }}\n}",
+        "options": {}
+      },
+      "name": "Response Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1050, 200]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execute Tool: get-note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Tool: get-note": {
+      "main": [
+        [
+          {
+            "node": "Check Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Error": {
+      "main": [
+        [
+          {
+            "node": "Response Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process MCP Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process MCP Response": {
+      "main": [
+        [
+          {
+            "node": "Sync to Obsidian",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync to Obsidian": {
+      "main": [
+        [
+          {
+            "node": "Response Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-05T15:00:00.000Z",
+  "versionId": "1"
+}
+

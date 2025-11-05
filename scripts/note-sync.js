@@ -12,46 +12,43 @@ import chalk from 'chalk';
 import ora from 'ora';
 
 /**
- * note-mcp クライアント（MCP Protocol 対応）
+ * note-mcp クライアント（HTTP/SSE モード対応）
  */
-import { NoteMCPClient as MCPClient } from './mcp-client.js';
+import { NoteMCPHTTPClient } from './mcp-client-http.js';
 
 class NoteMcpClient {
-  constructor(mcpServerPath) {
-    this.mcpServerPath = mcpServerPath || process.env.NOTE_MCP_PATH || '../note-mcp/build/index.js';
-    this.client = null;
+  constructor(baseUrl) {
+    // HTTP/SSE モードを使用
+    this.baseUrl = baseUrl || process.env.NOTE_MCP_URL || 'http://127.0.0.1:3000';
+    this.client = new NoteMCPHTTPClient(this.baseUrl);
   }
 
   async connect() {
-    if (!this.client) {
-      this.client = new MCPClient(this.mcpServerPath);
-      await this.client.connect();
+    // HTTP モードでは接続チェックのみ
+    const healthy = await this.client.client.healthCheck();
+    if (!healthy) {
+      throw new Error(`MCP server is not healthy at ${this.baseUrl}`);
     }
   }
 
   async disconnect() {
-    if (this.client) {
-      await this.client.disconnect();
-      this.client = null;
-    }
+    // HTTP モードでは何もしない
   }
 
   async getDraft(noteId) {
     await this.connect();
-    const result = await this.client.getDraft(noteId);
-    return result.content[0];  // MCP response format
+    return await this.client.getDraft(noteId);
   }
 
   async updateDraft({ noteId, title, body, images = [] }) {
     await this.connect();
-    const result = await this.client.updateDraft({ noteId, title, body });
-    return result.content[0];
+    // note-mcp の post-draft-note ツールを使用
+    return await this.client.updateDraft({ noteId, title, body, isPublic: false });
   }
 
   async uploadImage({ filename, data, contentType }) {
     await this.connect();
-    const result = await this.client.uploadImage({ filename, data, contentType });
-    return result.content[0];
+    return await this.client.uploadImage({ filename, data, contentType });
   }
 }
 
@@ -59,8 +56,8 @@ class NoteMcpClient {
  * メイン同期クラス
  */
 class NoteSync {
-  constructor(mcpServerPath) {
-    this.mcp = new NoteMcpClient(mcpServerPath);
+  constructor(baseUrl) {
+    this.mcp = new NoteMcpClient(baseUrl);
     
     // Turndown 設定
     this.turndown = new TurndownService({
@@ -597,7 +594,7 @@ ${noteContent}
 async function main() {
   const [,, command, ...args] = process.argv;
   
-  const sync = new NoteSync(process.env.NOTE_MCP_PATH);
+  const sync = new NoteSync(process.env.NOTE_MCP_URL);
   
   try {
     switch (command) {

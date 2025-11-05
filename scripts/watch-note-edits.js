@@ -6,16 +6,16 @@
  */
 
 import { NoteSync } from './note-sync.js';
-import { NoteMCPClient } from './mcp-client.js';
+import { NoteMCPHTTPClient } from './mcp-client-http.js';
 import { glob } from 'glob';
 import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';
 
 const WATCH_INTERVAL = 30000; // 30秒
-const mcpPath = process.env.NOTE_MCP_PATH || '../note-mcp/build/index.js';
-const mcp = new NoteMCPClient(mcpPath);
-const sync = new NoteSync(mcpPath);
+const mcpUrl = process.env.NOTE_MCP_URL || 'http://127.0.0.1:3000';
+const mcp = new NoteMCPHTTPClient(mcpUrl);
+const sync = new NoteSync(mcpUrl);
 
 async function checkForUpdates() {
   const metaFiles = await glob('articles/*/meta.json');
@@ -30,9 +30,10 @@ async function checkForUpdates() {
     
     try {
       // note から最新版を取得
-      await mcp.connect();
       const noteData = await mcp.getDraft(meta.note_id);
-      const noteHash = sync.hashContent(noteData.body);
+      // note-mcp のレスポンス形式に応じて body を取得
+      const body = noteData.body || noteData.html || JSON.stringify(noteData);
+      const noteHash = sync.hashContent(body);
       
       // hash が変わっていれば編集されている
       if (noteHash !== meta.versions?.hash?.html) {

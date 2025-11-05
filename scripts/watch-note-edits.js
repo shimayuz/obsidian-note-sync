@@ -5,15 +5,17 @@
  * ローカル開発環境で常駐させる
  */
 
-import { NoteSync, NoteMcpClient } from './note-sync.js';
+import { NoteSync } from './note-sync.js';
+import { NoteMCPClient } from './mcp-client.js';
 import { glob } from 'glob';
 import fs from 'fs/promises';
 import path from 'path';
 import chalk from 'chalk';
 
 const WATCH_INTERVAL = 30000; // 30秒
-const mcp = new NoteMcpClient(process.env.NOTE_MCP_URL);
-const sync = new NoteSync(process.env.NOTE_MCP_URL);
+const mcpPath = process.env.NOTE_MCP_PATH || '../note-mcp/build/index.js';
+const mcp = new NoteMCPClient(mcpPath);
+const sync = new NoteSync(mcpPath);
 
 async function checkForUpdates() {
   const metaFiles = await glob('articles/*/meta.json');
@@ -28,6 +30,7 @@ async function checkForUpdates() {
     
     try {
       // note から最新版を取得
+      await mcp.connect();
       const noteData = await mcp.getDraft(meta.note_id);
       const noteHash = sync.hashContent(noteData.body);
       
@@ -52,6 +55,13 @@ async function main() {
   console.log(chalk.bold('\n👀 Watching for note edits...\n'));
   console.log(chalk.gray(`Checking every ${WATCH_INTERVAL / 1000} seconds`));
   console.log(chalk.gray('Press Ctrl+C to stop\n'));
+  
+  // 終了時のクリーンアップ
+  process.on('SIGINT', async () => {
+    console.log(chalk.yellow('\n\nStopping...'));
+    await mcp.disconnect();
+    process.exit(0);
+  });
   
   // 初回実行
   await checkForUpdates();

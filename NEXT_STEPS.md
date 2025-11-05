@@ -48,30 +48,47 @@ git remote add origin https://github.com/<your-username>/<repo-name>.git
 git push -u origin main
 ```
 
-## 🔧 note-mcp の準備（10分）
+## 🔧 必須コンポーネントの準備
 
-### オプション A: ローカルで起動（開発用）
+### 1. note-mcp のセットアップ（10分）
+
+**note-mcp は MCP (Model Context Protocol) サーバー**として動作します。
 
 ```bash
 # note-mcp リポジトリをクローン
 cd /path/to/projects
-git clone https://github.com/<your-username>/note-mcp.git
-cd note-mcp
+git clone https://github.com/<your-username>/note-mcp-server.git
+cd note-mcp-server
 npm install
 
-# 起動
-npm start
-# → http://localhost:3000
+# ビルド
+npm run build
+# → build/index.js が生成される
 ```
 
-### オプション B: クラウドにデプロイ（本番推奨）
-
-note-mcp を Vercel, Railway, Fly.io などにデプロイ。
-
-デプロイ後、`.env` と GitHub Secrets を更新：
+`.env` を更新：
+```bash
+NOTE_MCP_PATH=../note-mcp-server/build/index.js
 ```
-NOTE_MCP_URL=https://your-note-mcp.vercel.app
+
+### 2. n8n のセットアップ（5分）
+
+**n8n はオーケストレーションレイヤー**として GitHub Actions と note-mcp を橋渡しします。
+
+```bash
+# Docker で起動（推奨）
+docker run -d \
+  --name n8n \
+  -p 5678:5678 \
+  -v ~/.n8n:/home/node/.n8n \
+  n8nio/n8n
+
+# または npm
+npm install -g n8n
+n8n start
 ```
+
+**詳細**: [n8n セットアップガイド](docs/n8n-setup.md) を参照
 
 ## 🚀 最初の記事で動作確認（5分）
 
@@ -141,27 +158,38 @@ cat articles/test-article/index.md
 
 ## 🤖 GitHub Actions の設定（5分）
 
-### 1. GitHub Secrets を設定
+### 1. n8n を公開
+
+GitHub Actions から n8n にアクセスできるようにします。
+
+**オプション A: ngrok（開発用）**
+```bash
+ngrok http 5678
+# → https://xxxx.ngrok.io
+```
+
+**オプション B: n8n Cloud（本番推奨）**
+- https://n8n.io/ でアカウント作成
+- ワークフローをインポート
+
+### 2. GitHub Secrets を設定
 
 ```bash
-# note-mcp の URL を設定
-gh secret set NOTE_MCP_URL --body "https://your-note-mcp.vercel.app"
+# n8n の Webhook URL を設定
+gh secret set N8N_WEBHOOK_URL --body "https://your-n8n-url.com/webhook/"
 
 # または GitHub の Web UI で設定
 # Settings → Secrets and variables → Actions → New repository secret
 ```
 
-> ⚠️ **重要**: `localhost:3000` は GitHub Actions からアクセスできません。
-> note-mcp をクラウドにデプロイするか、ngrok を使用してください。
-
-### 2. Actions の権限を設定
+### 3. Actions の権限を設定
 
 GitHub リポジトリの Settings → Actions → General で:
 
 - [x] **Allow all actions and reusable workflows**
 - [x] **Read and write permissions** （Workflow permissions）
 
-### 3. 動作確認
+### 4. 動作確認
 
 ```bash
 # 記事を編集

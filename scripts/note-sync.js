@@ -12,43 +12,46 @@ import chalk from 'chalk';
 import ora from 'ora';
 
 /**
- * note-mcp クライアント
+ * note-mcp クライアント（MCP Protocol 対応）
  */
+import { NoteMCPClient as MCPClient } from './mcp-client.js';
+
 class NoteMcpClient {
-  constructor(url) {
-    this.baseUrl = url || process.env.NOTE_MCP_URL || 'http://localhost:3000';
+  constructor(mcpServerPath) {
+    this.mcpServerPath = mcpServerPath || process.env.NOTE_MCP_PATH || '../note-mcp/build/index.js';
+    this.client = null;
+  }
+
+  async connect() {
+    if (!this.client) {
+      this.client = new MCPClient(this.mcpServerPath);
+      await this.client.connect();
+    }
+  }
+
+  async disconnect() {
+    if (this.client) {
+      await this.client.disconnect();
+      this.client = null;
+    }
   }
 
   async getDraft(noteId) {
-    const response = await fetch(`${this.baseUrl}/api/drafts/${noteId}`);
-    if (!response.ok) {
-      throw new Error(`Failed to get draft: ${response.statusText}`);
-    }
-    return response.json();
+    await this.connect();
+    const result = await this.client.getDraft(noteId);
+    return result.content[0];  // MCP response format
   }
 
   async updateDraft({ noteId, title, body, images = [] }) {
-    const response = await fetch(`${this.baseUrl}/api/drafts/${noteId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, images })
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update draft: ${response.statusText}`);
-    }
-    return response.json();
+    await this.connect();
+    const result = await this.client.updateDraft({ noteId, title, body });
+    return result.content[0];
   }
 
   async uploadImage({ filename, data, contentType }) {
-    const response = await fetch(`${this.baseUrl}/api/images`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename, data, contentType })
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to upload image: ${response.statusText}`);
-    }
-    return response.json();
+    await this.connect();
+    const result = await this.client.uploadImage({ filename, data, contentType });
+    return result.content[0];
   }
 }
 
@@ -56,8 +59,8 @@ class NoteMcpClient {
  * メイン同期クラス
  */
 class NoteSync {
-  constructor(noteMcpUrl) {
-    this.mcp = new NoteMcpClient(noteMcpUrl);
+  constructor(mcpServerPath) {
+    this.mcp = new NoteMcpClient(mcpServerPath);
     
     // Turndown 設定
     this.turndown = new TurndownService({
@@ -594,7 +597,7 @@ ${noteContent}
 async function main() {
   const [,, command, ...args] = process.argv;
   
-  const sync = new NoteSync(process.env.NOTE_MCP_URL);
+  const sync = new NoteSync(process.env.NOTE_MCP_PATH);
   
   try {
     switch (command) {
@@ -665,6 +668,9 @@ Usage:
       console.error(error.stack);
     }
     process.exit(1);
+  } finally {
+    // MCP 接続をクリーンアップ
+    await sync.mcp.disconnect();
   }
 }
 

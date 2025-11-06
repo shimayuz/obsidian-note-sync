@@ -1,0 +1,163 @@
+{
+  "name": "Obsidian → note Sync (AI Agent)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "obsidian-sync",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [176, 0],
+      "id": "webhook-1",
+      "name": "Webhook",
+      "webhookId": "obsidian-sync"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "あなたは note.com と Obsidian の同期を管理するアシスタントです。\n\n利用可能なツール:\n- post-draft-note: note の下書きを更新\n- get-note: note の記事を取得\n- get-my-notes: 自分の記事一覧を取得\n\nユーザーからの指示に従って、適切なツールを選択して実行してください。\n\n指示の形式:\n- \"push <slug>\" → post-draft-note で下書きを更新\n- \"pull <noteId>\" → get-note で記事を取得\n- \"list\" → get-my-notes で記事一覧を取得"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [416, 0],
+      "id": "ai-agent-1",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "connectionType": "http",
+        "options": {
+          "baseURL": "http://127.0.0.1:3000"
+        }
+      },
+      "type": "n8n-nodes-mcp.mcpClientTool",
+      "typeVersion": 1,
+      "position": [576, 208],
+      "id": "mcp-client-1",
+      "name": "MCP Client (note-mcp)",
+      "credentials": {
+        "mcpClientHttpApi": {
+          "id": "MUq3d1LaZ6FUeTwE",
+          "name": "MCP Client (HTTP Streamable) note-mcp"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 2000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [288, 208],
+      "id": "openai-model-1",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "dwjHYQSaBlky6NGm",
+          "name": "OpenAi grok xAI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// AI Agent の出力を整形\nconst agentOutput = $input.first().json.output || $input.first().json.text || '';\nconst webhookData = $('Webhook').first().json;\n\n// 成功/失敗を判定\nconst success = !agentOutput.toLowerCase().includes('error') && \n                !agentOutput.toLowerCase().includes('失敗');\n\nreturn {\n  success: success,\n  message: agentOutput,\n  originalRequest: webhookData,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [656, 0],
+      "id": "format-output-1",
+      "name": "Format Output"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": $json.success,\n  \"message\": $json.message,\n  \"timestamp\": $json.timestamp\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [856, 0],
+      "id": "response-1",
+      "name": "Response"
+    }
+  ],
+  "connections": {
+    "MCP Client (note-mcp)": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-05T15:30:00.000Z",
+  "versionId": "1"
+}
+

@@ -9,6 +9,7 @@ Cursor + Obsidian + note.com を Git 中心で統合し、画像も含めた完�
 - **画像管理**: Git LFS で自動最適化・CDN マッピング
 - **編集ロック**: 同時編集を防ぐメタデータ管理
 - **競合検知**: 3-way diff で安全なマージ
+- **AI Agent 対応**: n8n の AI Agent で自然言語での指示が可能 ⭐ **新機能**
 
 ## 📁 ディレクトリ構造
 
@@ -25,8 +26,13 @@ Cursor + Obsidian + note.com を Git 中心で統合し、画像も含めた完�
 │               └── *.url
 ├── scripts/                  # 同期スクリプト
 │   ├── note-sync.js          # メイン同期ロジック
+│   ├── mcp-client-http.js    # HTTP/SSE MCP クライアント
 │   ├── watch-note-edits.js   # note 編集監視
 │   └── cleanup-unused-images.js
+├── n8n/                      # n8n ワークフロー
+│   ├── note-sync-simple-ai-agent.json  # ⭐ AI Agent（シンプル版）
+│   ├── note-sync-push-ai-agent.json    # AI Agent（実用版）
+│   └── note-sync-push-complete.json    # Execute Command 版
 ├── .github/
 │   └── workflows/
 │       ├── note-push.yml     # Obsidian → note 自動同期

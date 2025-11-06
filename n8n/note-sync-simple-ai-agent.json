@@ -1,0 +1,136 @@
+{
+  "name": "note Sync (Simple AI Agent)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "note-sync",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [176, 0],
+      "id": "webhook-1",
+      "name": "Webhook",
+      "webhookId": "note-sync"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "あなたは note.com と Obsidian の同期を管理するアシスタントです。\n\n利用可能なツール:\n- post-draft-note: note の下書きを更新\n  - noteId: 記事ID（例: n/abc123）\n  - title: 記事タイトル\n  - body: HTML形式の本文\n  - isPublic: false（下書き）\n- get-note: note の記事を取得\n  - noteId: 記事ID\n- get-my-notes: 自分の記事一覧を取得\n\nユーザーからの指示に従って、適切なツールを選択して実行してください。\n\n例:\n- \"push n/abc123 with title '記事タイトル' and body '<p>本文</p>'\"\n- \"pull n/abc123\"\n- \"list my notes\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [416, 0],
+      "id": "ai-agent-1",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "connectionType": "http",
+        "options": {
+          "baseURL": "http://127.0.0.1:3000"
+        }
+      },
+      "type": "n8n-nodes-mcp.mcpClientTool",
+      "typeVersion": 1,
+      "position": [576, 208],
+      "id": "mcp-client-1",
+      "name": "MCP Client",
+      "credentials": {
+        "mcpClientHttpApi": {
+          "id": "MUq3d1LaZ6FUeTwE",
+          "name": "MCP Client (HTTP Streamable) note-mcp"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 2000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [288, 208],
+      "id": "openai-model-1",
+      "name": "OpenAI Chat Model"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"message\": $json.output || $json.text,\n  \"timestamp\": $now\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [656, 0],
+      "id": "response-1",
+      "name": "Response"
+    }
+  ],
+  "connections": {
+    "MCP Client": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-05T16:00:00.000Z",
+  "versionId": "1"
+}
+

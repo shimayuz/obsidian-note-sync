@@ -2,9 +2,44 @@
 
 ## 📋 利用可能なワークフロー
 
+### 0. **Obsidian → note Push (AI Agent)** (`note-sync-push-ai-agent.json`) ⭐ **新方式**
+
+**推奨**: ✅✅✅ **最もシンプルで柔軟**
+
+**特徴**:
+- AI Agent が自動で MCP ツールを選択・実行
+- 自然言語で指示可能
+- 3-5ノードで完結
+
+**動作**:
+1. Webhook で `slug` を受け取る
+2. 記事データを取得（Markdown + メタデータ）
+3. AI Agent に渡して、MCP ツールを実行
+4. 結果を返す
+
+**使用方法**:
+```bash
+curl -X POST http://localhost:5678/webhook/obsidian-push-ai \
+  -H "Content-Type: application/json" \
+  -d '{"slug": "my-article"}'
+```
+
+**メリット**:
+- ✅ シンプル（AI Agent が判断）
+- ✅ 柔軟性が高い
+- ✅ エラーハンドリングが自動
+
+**デメリット**:
+- ⚠️ OpenAI API コストがかかる（$0.001/回程度）
+- ⚠️ 実行時間が長い（2-5秒）
+
+**詳細**: [AI Agent ワークフローガイド](n8n-ai-agent.md)
+
+---
+
 ### 1. **Obsidian → note Push (Complete)** (`note-sync-push-complete.json`)
 
-**推奨**: ✅ 最もシンプルで確実
+**推奨**: ✅ 確実で高速（コストなし）
 
 **動作**:
 1. Webhook で `slug` を受け取る
@@ -321,4 +356,5 @@ curl -X POST "${N8N_WEBHOOK_URL}/obsidian-push" \
 - [n8n セットアップガイド](n8n-setup.md)
 - [アーキテクチャ概要](architecture.md)
 - [トラブルシューティング](troubleshooting.md)
+
 

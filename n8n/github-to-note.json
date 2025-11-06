@@ -1,0 +1,165 @@
+{
+  "name": "GitHub → note.com Push",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-to-note",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [180, 300],
+      "id": "webhook-1",
+      "name": "GitHub Webhook"
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "GET",
+        "url": "=https://raw.githubusercontent.com/{{ $json.repository }}/{{ $json.branch }}/articles/{{ $json.slug }}/index.md",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 300],
+      "id": "get-markdown-1",
+      "name": "Get Markdown from GitHub"
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "GET",
+        "url": "=https://raw.githubusercontent.com/{{ $('GitHub Webhook').first().json.repository }}/{{ $('GitHub Webhook').first().json.branch }}/articles/{{ $('GitHub Webhook').first().json.slug }}/meta.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 450],
+      "id": "get-meta-1",
+      "name": "Get meta.json from GitHub"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Markdown を HTML に変換（marked を使用）\nconst markdown = $('Get Markdown from GitHub').first().json.data;\nconst meta = JSON.parse($('Get meta.json from GitHub').first().json.data);\n\n// 簡易的な Markdown → HTML 変換\n// 本番では marked ライブラリを使用\nlet html = markdown\n  .replace(/^# (.+)$/gm, '<h1>$1</h1>')\n  .replace(/^## (.+)$/gm, '<h2>$1</h2>')\n  .replace(/^### (.+)$/gm, '<h3>$1</h3>')\n  .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')\n  .replace(/\\*(.+?)\\*/g, '<em>$1</em>')\n  .replace(/^- (.+)$/gm, '<li>$1</li>')\n  .replace(/<li>/g, '<ul><li>')\n  .replace(/<\\/li>/g, '</li></ul>')\n  .replace(/<\\/ul>\\s*<ul>/g, '')\n  .replace(/\\n\\n/g, '</p><p>')\n  .replace(/\\n/g, '<br>');\n\nhtml = '<p>' + html + '</p>';\n\n// 画像パスを処理（相対パス → GitHub raw URL）\nconst repository = $('GitHub Webhook').first().json.repository;\nconst branch = $('GitHub Webhook').first().json.branch;\nhtml = html.replace(\n  /!\\[([^\\]]*)\\]\\((assets\\/[^)]+)\\)/g,\n  `<img src=\"https://raw.githubusercontent.com/${repository}/${branch}/articles/${meta.slug}/$2\" alt=\"$1\">`\n);\n\nreturn {\n  noteId: meta.note_id,\n  title: meta.title,\n  body: html,\n  slug: meta.slug\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 300],
+      "id": "convert-to-html-1",
+      "name": "Convert to HTML"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://127.0.0.1:3000/mcp",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"post-draft-note\",\n    \"arguments\": {\n      \"noteId\": $json.noteId,\n      \"title\": $json.title,\n      \"body\": $json.body,\n      \"isPublic\": false\n    }\n  }\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 300],
+      "id": "post-to-note-1",
+      "name": "Post to note (MCP)"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"slug\": $json.slug || $('Convert to HTML').first().json.slug,\n  \"noteId\": $json.noteId || $('Convert to HTML').first().json.noteId,\n  \"message\": \"Successfully pushed to note.com\"\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1060, 300],
+      "id": "response-1",
+      "name": "Response"
+    }
+  ],
+  "connections": {
+    "GitHub Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Markdown from GitHub",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get meta.json from GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Markdown from GitHub": {
+      "main": [
+        [
+          {
+            "node": "Convert to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get meta.json from GitHub": {
+      "main": [
+        [
+          {
+            "node": "Convert to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to HTML": {
+      "main": [
+        [
+          {
+            "node": "Post to note (MCP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to note (MCP)": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-05T16:30:00.000Z",
+  "versionId": "1"
+}
+

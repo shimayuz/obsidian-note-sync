@@ -39,7 +39,7 @@ jobs:
             echo "EOF" >> $GITHUB_OUTPUT
           fi
       
-      - name: Push to note (via n8n)
+      - name: Push to note (via n8n + MCP)
         if: steps.changes.outputs.changed != ''
         env:
           N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
@@ -47,9 +47,9 @@ jobs:
           echo "${{ steps.changes.outputs.changed }}" | while read slug; do
             if [ -n "$slug" ]; then
               echo "Pushing $slug via n8n..."
-              curl -X POST "${N8N_WEBHOOK_URL}/obsidian-push" \
+              curl -X POST "${N8N_WEBHOOK_URL}/github-to-note" \
                 -H "Content-Type: application/json" \
-                -d "{\"slug\": \"$slug\"}" \
+                -d "{\"slug\": \"$slug\", \"repository\": \"${{ github.repository }}\", \"branch\": \"${{ github.ref_name }}\"}" \
                 || echo "⚠️ Failed to push $slug"
             fi
           done

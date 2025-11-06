@@ -1,0 +1,275 @@
+{
+  "name": "note.com → GitHub Pull",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [180, 300],
+      "id": "schedule-1",
+      "name": "Schedule (15分ごと)"
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "GET",
+        "url": "https://api.github.com/repos/{{ $env.GITHUB_REPOSITORY }}/contents/articles",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 300],
+      "id": "list-articles-1",
+      "name": "List Articles from GitHub"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [620, 300],
+      "id": "split-articles-1",
+      "name": "Split Articles"
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "GET",
+        "url": "={{ $json.download_url }}/meta.json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 300],
+      "id": "get-meta-1",
+      "name": "Get meta.json"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ JSON.parse($json.data).editing.location }}",
+              "rightValue": "note",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1060, 300],
+      "id": "check-if-note-editing-1",
+      "name": "Check if note is editing"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://127.0.0.1:3000/mcp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"get-note\",\n    \"arguments\": {\n      \"noteId\": JSON.parse($('Get meta.json').first().json.data).note_id\n    }\n  }\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1280, 400],
+      "id": "get-from-note-1",
+      "name": "Get from note (MCP)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// MCP レスポンスから記事データを抽出\nconst mcpResponse = $input.first().json;\nconst meta = JSON.parse($('Get meta.json').first().json.data);\n\nlet noteData;\nif (mcpResponse.result && mcpResponse.result.content && mcpResponse.result.content[0]) {\n  const content = mcpResponse.result.content[0];\n  noteData = typeof content.text === 'string' ? JSON.parse(content.text) : content;\n} else {\n  noteData = mcpResponse.result || mcpResponse;\n}\n\nconst body = noteData.body || noteData.html || noteData.content || '';\n\n// HTML → Markdown 簡易変換（本番では Turndown 使用）\nlet markdown = body\n  .replace(/<h1>(.+?)<\\/h1>/g, '# $1')\n  .replace(/<h2>(.+?)<\\/h2>/g, '## $1')\n  .replace(/<h3>(.+?)<\\/h3>/g, '### $1')\n  .replace(/<strong>(.+?)<\\/strong>/g, '**$1**')\n  .replace(/<em>(.+?)<\\/em>/g, '*$1*')\n  .replace(/<li>(.+?)<\\/li>/g, '- $1')\n  .replace(/<\\/?ul>/g, '')\n  .replace(/<br>/g, '\\n')\n  .replace(/<\\/?p>/g, '\\n\\n')\n  .replace(/\\n{3,}/g, '\\n\\n');\n\nmarkdown = markdown.trim();\n\nreturn {\n  slug: meta.slug,\n  noteId: meta.note_id,\n  markdown: markdown,\n  repository: $('GitHub Webhook').first().json.repository,\n  branch: $('GitHub Webhook').first().json.branch || 'main'\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 400],
+      "id": "convert-to-markdown-1",
+      "name": "Convert to Markdown"
+    },
+    {
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "method": "PUT",
+        "url": "=https://api.github.com/repos/{{ $json.repository }}/contents/articles/{{ $json.slug }}/index.md",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  \"message\": \"chore: pull from note.com [skip ci]\",\n  \"content\": Buffer.from($json.markdown).toString('base64'),\n  \"branch\": $json.branch,\n  \"sha\": \"\" // GitHub が自動で取得\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1720, 400],
+      "id": "commit-to-github-1",
+      "name": "Commit to GitHub"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"slug\": $json.slug,\n  \"message\": \"Pulled from note.com and committed to GitHub\"\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1940, 400],
+      "id": "response-1",
+      "name": "Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": false,\n  \"message\": \"No articles are being edited on note\"\n} }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1280, 200],
+      "id": "response-skip-1",
+      "name": "Response (Skip)"
+    }
+  ],
+  "connections": {
+    "GitHub Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Markdown from GitHub",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get meta.json from GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Markdown from GitHub": {
+      "main": [
+        [
+          {
+            "node": "Convert to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get meta.json from GitHub": {
+      "main": [
+        [
+          {
+            "node": "Convert to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check if note is editing": {
+      "main": [
+        [
+          {
+            "node": "Response (Skip)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get from note (MCP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get from note (MCP)": {
+      "main": [
+        [
+          {
+            "node": "Convert to Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Markdown": {
+      "main": [
+        [
+          {
+            "node": "Commit to GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Commit to GitHub": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-05T16:30:00.000Z",
+  "versionId": "1"
+}
+

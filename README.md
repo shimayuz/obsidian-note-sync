@@ -2,6 +2,18 @@
 
 Cursor + Obsidian + note.com を Git 中心で統合し、画像も含めた完全な往復編集を実現します。
 
+## 🚀 3つの実装方式
+
+| 方式 | 複雑さ | コスト | 推奨 |
+|------|--------|--------|------|
+| **A. GitHub Actions のみ** | ⭐ シンプル | $0 | ✅✅✅ **推奨** |
+| **B. GitHub + n8n + MCP** | ⭐⭐ 中程度 | $0 | ⭐⭐ カスタマイズ重視 |
+| **C. GitHub + n8n + AI Agent** | ⭐⭐⭐ 複雑 | $0.06/月 | ⭐ 実験的 |
+
+**詳細比較**: [実装方式の比較](docs/implementation-comparison.md)
+
+**クイックスタート**: [QUICKSTART.md](QUICKSTART.md) - 15分で動かす（方式A）
+
 ## 🎯 特徴
 
 - **Git が真実の源泉**: バージョン管理・競合解決を Git に任せる

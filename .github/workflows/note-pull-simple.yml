@@ -1,0 +1,43 @@
+name: Pull from note (Simple)
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # 15分ごと
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Pull from note.com
+        env:
+          NOTE_EMAIL: ${{ secrets.NOTE_EMAIL }}
+          NOTE_PASSWORD: ${{ secrets.NOTE_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for meta in articles/*/meta.json; do
+            slug=$(basename $(dirname $meta))
+            
+            # editing.location === "note" の記事のみ pull
+            location=$(jq -r '.editing.location // "none"' $meta)
+            
+            if [ "$location" = "note" ]; then
+              echo "Pulling $slug from note.com..."
+              python scripts/note-to-github.py "${{ github.repository }}" "${{ github.ref_name }}" "$slug" \
+                || echo "⚠️ Failed to pull $slug"
+            fi
+          done
+

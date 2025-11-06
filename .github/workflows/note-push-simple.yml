@@ -1,0 +1,54 @@
+name: Push to note (Simple)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'articles/**/*.md'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests
+      
+      - name: Detect changed articles
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD | grep 'articles/.*/index.md$' | sed 's|articles/\(.*\)/index.md|\1|' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "changed=" >> $GITHUB_OUTPUT
+          else
+            echo "changed<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGED" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Push to note.com
+        if: steps.changes.outputs.changed != ''
+        env:
+          NOTE_EMAIL: ${{ secrets.NOTE_EMAIL }}
+          NOTE_PASSWORD: ${{ secrets.NOTE_PASSWORD }}
+        run: |
+          echo "${{ steps.changes.outputs.changed }}" | while read slug; do
+            if [ -n "$slug" ]; then
+              echo "Pushing $slug to note.com..."
+              python scripts/github-to-note.py "${{ github.repository }}" "${{ github.ref_name }}" "$slug" \
+                || echo "⚠️ Failed to push $slug"
+            fi
+          done
+

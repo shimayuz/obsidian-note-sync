@@ -60,7 +60,9 @@ n8n の **AI Agent** ノードを使って MCP ツールを呼び出す方法で
 1. **MCP Client** ノードを追加
 2. **Credentials** で上記で作成した認証情報を選択
 3. **Connection Type**: HTTP
-4. **Base URL**: `http://127.0.0.1:3000`
+4. **Base URL**: 
+   - ローカル: `http://127.0.0.1:3000`
+   - 独自ドメイン: `https://your-domain.com`（パス `/mcp` は自動で付与されます。実際のドメインに置き換えてください）
 
 ### 2. OpenAI Chat Model の設定
 

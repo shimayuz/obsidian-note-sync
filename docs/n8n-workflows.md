@@ -275,12 +275,37 @@ tail -f ~/.n8n/logs/n8n.log
 
 **確認事項**:
 1. note-mcp が HTTP モードで起動しているか
-2. `http://127.0.0.1:3000/health` が応答するか
-3. `http://127.0.0.1:3000/mcp` が応答するか
+2. ヘルスチェックエンドポイントが応答するか
+3. MCP エンドポイントが応答するか
 
-**テスト**:
+**テスト（ローカル）**:
 ```bash
+# ヘルスチェック
+curl http://127.0.0.1:3000/health
+
+# MCP ツール呼び出し
 curl -X POST http://127.0.0.1:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "get-note",
+      "arguments": {
+        "noteId": "n/example"
+      }
+    }
+  }'
+```
+
+**テスト（独自ドメイン）**:
+```bash
+# ヘルスチェック（実際のドメインに置き換えてください）
+curl https://your-domain.com/health
+
+# MCP ツール呼び出し
+curl -X POST https://your-domain.com/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",

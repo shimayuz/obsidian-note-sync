@@ -11,8 +11,19 @@ import { EventEmitter } from 'events';
 export class MCPHTTPClient extends EventEmitter {
   constructor(baseUrl) {
     super();
-    this.baseUrl = baseUrl || process.env.NOTE_MCP_URL || 'http://127.0.0.1:3000';
-    this.mcpEndpoint = `${this.baseUrl}/mcp`;
+    // デフォルト URL（環境変数または引数で上書き可能）
+    const defaultUrl = process.env.NOTE_MCP_URL || 'http://127.0.0.1:3000';
+    this.baseUrl = baseUrl || defaultUrl;
+    
+    // /mcp パスが含まれていない場合、追加
+    if (!this.baseUrl.endsWith('/mcp')) {
+      this.mcpEndpoint = this.baseUrl.endsWith('/') 
+        ? `${this.baseUrl}mcp` 
+        : `${this.baseUrl}/mcp`;
+    } else {
+      this.mcpEndpoint = this.baseUrl;
+    }
+    
     this.messageId = 0;
     this.pendingRequests = new Map();
   }
